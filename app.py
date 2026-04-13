@@ -46,10 +46,11 @@ with st.sidebar:
 # 3. Data Preparation
 # ================================
 # Creating the DataFrame exactly as the model expects
+
 input_data = pd.DataFrame({
     "Age": [age],
     "Gender": [gender],
-    "Country": ["Uganda"], # Default or add to sidebar
+    "Country": ["Uganda"],
     "Student_Working_Status": [status],
     "Daily_Social_Media_Hours": [social],
     "Screen_Time_Hours": [screen],
@@ -59,7 +60,16 @@ input_data = pd.DataFrame({
     "Anxiety_Score": [anxiety],
     "Overthinking_Score": [overthinking],
     "Emotional_Fatigue_Score": [fatigue],
-    "Exercise_Frequency_per_Week": [exercise]
+    "Exercise_Frequency_per_Week": [exercise],
+
+    # --- ADD THESE MISSING COLUMNS ---
+    "Night_Scrolling_Frequency": [3], # Neutral value (e.g., scale of 1-5)
+    "Social_Comparison_Index": [3],
+    "Caffeine_Intake_Cups": [1],      # Average intake
+    "Sleep_Quality_Score": [5],       # Default average
+    "Mood_Stability_Score": [5],
+    "Motivation_Level": [5],
+    "Study_Work_Hours_per_Day": [8]    # Standard work day
 })
 
 # IMPORTANT: Replicate the Feature Engineering from training

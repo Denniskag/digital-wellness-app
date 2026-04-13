@@ -160,7 +160,7 @@ if st.button("Analyze My Wellness", type="primary"):
         
         # Plotting Beeswarm
         # Note: With only 1 row, beeswarm looks like a bar chart but correctly labeled.
-        fig, ax = plt.subplots(figsize=(10, 6))
+        fig, ax = plt.subplots(figsize=(5, 5))
         shap.plots.beeswarm(shap_values, show=False)
         plt.tight_layout()
         st.pyplot(fig)

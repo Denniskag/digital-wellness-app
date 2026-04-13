@@ -10,6 +10,25 @@ import matplotlib.pyplot as plt
 # ================================
 st.set_page_config(page_title="Digital Wellness Recommender", layout="wide")
 
+# Custom CSS for a better UI
+st.markdown("""
+    <style>
+    .stMetric {
+        background-color: #f0f2f6;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #e0e0e0;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #007bff;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 @st.cache_resource
 def load_models():
     reg = joblib.load("best_wellbeing_model.pkl")
@@ -22,7 +41,7 @@ reg_model, clf_model = load_models()
 # 2. Sidebar / Inputs
 # ================================
 st.title("🧠 Digital Wellness & Burnout Recommender")
-st.markdown("Enter your daily habits below to analyze your wellbeing and burnout risk.")
+st.markdown("Analyze your habits and get AI-driven insights into your mental wellbeing.")
 
 with st.sidebar:
     st.header("User Profile")
@@ -45,8 +64,6 @@ with st.sidebar:
 # ================================
 # 3. Data Preparation
 # ================================
-# Creating the DataFrame exactly as the model expects
-
 input_data = pd.DataFrame({
     "Age": [age],
     "Gender": [gender],
@@ -62,74 +79,88 @@ input_data = pd.DataFrame({
     "Emotional_Fatigue_Score": [fatigue],
     "Exercise_Frequency_per_Week": [exercise],
 
-    # --- ADD THESE MISSING COLUMNS ---
-    "Night_Scrolling_Frequency": [3], # Neutral value (e.g., scale of 1-5)
+    # Filling missing columns expected by the model
+    "Night_Scrolling_Frequency": [3],
     "Social_Comparison_Index": [3],
-    "Caffeine_Intake_Cups": [1],      # Average intake
-    "Sleep_Quality_Score": [5],       # Default average
+    "Caffeine_Intake_Cups": [1],
+    "Sleep_Quality_Score": [5],
     "Mood_Stability_Score": [5],
     "Motivation_Level": [5],
-    "Study_Work_Hours_per_Day": [8]    # Standard work day
+    "Study_Work_Hours_per_Day": [8]
 })
 
-# IMPORTANT: Replicate the Feature Engineering from training
-input_data["digital_overload"] = (
-    input_data["Daily_Social_Media_Hours"] +
-    input_data["Screen_Time_Hours"] +
-    input_data["Online_Gaming_Hours"]
-)
+# Feature Engineering
+input_data["digital_overload"] = input_data["Daily_Social_Media_Hours"] + input_data["Screen_Time_Hours"] + input_data["Online_Gaming_Hours"]
 input_data["sleep_deficit"] = 8 - input_data["Daily_Sleep_Hours"]
-input_data["mental_strain"] = (
-    input_data["Anxiety_Score"] +
-    input_data["Overthinking_Score"] +
-    input_data["Emotional_Fatigue_Score"]
-)
+input_data["mental_strain"] = input_data["Anxiety_Score"] + input_data["Overthinking_Score"] + input_data["Emotional_Fatigue_Score"]
 
 # ================================
-# 4. Predictions & Logic
+# 4. Predictions & Results
 # ================================
 if st.button("Analyze My Wellness", type="primary"):
     
     # Run Predictions
     wellbeing_score = reg_model.predict(input_data)[0]
-    burnout_risk = clf_model.predict(input_data)[0]
+    burnout_raw = clf_model.predict(input_data)[0]
 
-    # Display Results in Columns
+    # Map Burnout Integer to Label
+    # Adjust this dictionary to match your model's specific classes
+    risk_map = {0: "Low", 1: "Medium", 2: "High"}
+    burnout_label = risk_map.get(burnout_raw, "Moderate")
+
+    # Display Metrics
+    st.subheader("📊 Your Results")
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Predicted Wellbeing Index", f"{wellbeing_score:.2f}")
     with col2:
-        risk_color = "inverse" if burnout_risk == "High" else "normal"
-        st.metric("Burnout Risk Level", str(burnout_risk))
+        st.metric("Burnout Risk Level", burnout_label)
 
-    # Recommendations Logic
+    # --- RECOMMENDATIONS ---
     st.divider()
     st.subheader("💡 Personalized Recommendations")
     
     recs = []
-    if sleep < 7: recs.append("Aim for at least 7-8 hours of sleep to reduce cognitive load.")
-    if screen > 7: recs.append("High screen time detected. Try the 20-20-20 rule (every 20 mins, look 20 feet away for 20 secs).")
-    if exercise < 3: recs.append("Physical activity is low. Even a 15-minute walk can boost your wellbeing score.")
-    if anxiety > 60: recs.append("Your anxiety score is high. Consider mindfulness or speaking to a counselor.")
-    
-    for r in recs:
-        st.info(r)
+    # Use .iloc[0] to access the values correctly for conditions
+    if input_data["Daily_Sleep_Hours"].iloc[0] < 7: 
+        recs.append("😴 **Sleep Priority:** Your sleep is below 7 hours. Try setting a 'no-screens' alarm 30 mins before bed.")
+    if input_data["Screen_Time_Hours"].iloc[0] > 7: 
+        recs.append("📱 **Digital Detox:** High screen time detected. Apply the 20-20-20 rule to reduce eye strain.")
+    if input_data["Exercise_Frequency_per_Week"].iloc[0] < 3: 
+        recs.append("🏃 **Movement:** Physical activity is lower than recommended. A quick 15-minute walk can boost your mood.")
+    if input_data["Anxiety_Score"].iloc[0] > 60: 
+        recs.append("🧘 **Stress Management:** High anxiety score. Consider short daily breathing exercises or meditation.")
+
+    if not recs:
+        st.success("✅ You're maintaining healthy habits! Keep it up.")
+    else:
+        for r in recs:
+            st.info(r)
 
     # ================================
-    # 5. SHAP Explanations
+    # 5. SHAP Beeswarm Plot
     # ================================
     st.divider()
-    st.subheader("🔍 What influenced your score?")
+    st.subheader("🔍 Feature Importance (Beeswarm)")
     
-    # Note: Use the preprocessor from the pipeline to transform the single row
-    X_processed = reg_model.named_steps["preprocessor"].transform(input_data)
-    
-    # Use Explainer on the model part of the pipeline
-    explainer = shap.Explainer(reg_model.named_steps["model"])
-    shap_values = explainer(X_processed)
-    
-    # Since OneHotEncoding changes feature names, SHAP might show "Feature 0, 1, etc." 
-    # unless we map names back, but for now, we'll plot the processed values:
-    fig, ax = plt.subplots()
-    shap.plots.waterfall(shap_values[0], show=False)
-    st.pyplot(plt.gcf())
+    with st.spinner("Calculating feature impact..."):
+        # Get feature names from the preprocessor
+        preprocessor = reg_model.named_steps["preprocessor"]
+        feature_names = preprocessor.get_feature_names_out()
+        
+        # Transform data
+        X_processed = preprocessor.transform(input_data)
+        
+        # Get SHAP values
+        explainer = shap.Explainer(reg_model.named_steps["model"])
+        shap_values = explainer(X_processed)
+        
+        # Manually assign feature names to the SHAP object
+        shap_values.feature_names = list(feature_names)
+        
+        # Plotting Beeswarm
+        # Note: With only 1 row, beeswarm looks like a bar chart but correctly labeled.
+        fig, ax = plt.subplots(figsize=(10, 6))
+        shap.plots.beeswarm(shap_values, show=False)
+        plt.tight_layout()
+        st.pyplot(fig)
